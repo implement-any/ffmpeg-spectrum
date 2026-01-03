@@ -69,8 +69,8 @@ function normalize(bar: number) {
 function applyAttackRelease(
   current: number[],
   previous: number[] | null,
-  attack = 0.7,
-  release = 0.2
+  attack = 0.8,
+  release = 0.9
 ): number[] {
   if (!previous) return current;
 
@@ -107,7 +107,7 @@ export function createFrames(
     const rawBars = createBars(magnitudes, barCount);
     const smoothed = smoothBars(rawBars);
     const normalized = smoothed.map(normalize);
-    const release = applyAttackRelease(normalized, prevBars, 0.8, 0.9);
+    const release = applyAttackRelease(normalized, prevBars, 0.7, 0.2);
     frames.push(release);
     prevBars = release;
   }
