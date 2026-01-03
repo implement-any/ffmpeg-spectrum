@@ -22,4 +22,4 @@ app.use("/audio", audio);
 const wss = new ws.WebSocket.Server({ server });
 wss.on("connection", socketConnection);
 
-app.listen(PORT, () => console.log(`Server online on port: ${PORT}`));
+server.listen(PORT, () => console.log(`Server online on port: ${PORT}`));
