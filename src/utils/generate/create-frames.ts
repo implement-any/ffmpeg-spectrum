@@ -8,13 +8,9 @@ function hannWindow(input: number[]): number[] {
 }
 
 function chunk(pcm: number[], fftSize: number, offset: number): number[] {
-  let input: number[];
+  let input = pcm.slice(offset, offset + fftSize);
 
-  // offset + fftSize 크기가 PCM 데이터의 크기보다 크면 나머지 부분은 0으로 채우기
-  if (offset + fftSize <= pcm.length) {
-    input = pcm.slice(offset, offset + fftSize);
-  } else {
-    input = pcm.slice(offset);
+  if (offset + fftSize > pcm.length) {
     input = input.concat(new Array(fftSize - input.length).fill(0));
   }
 
