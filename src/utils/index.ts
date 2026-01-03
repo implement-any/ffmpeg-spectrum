@@ -1,2 +1,2 @@
 export { extract } from "./pcm";
-export { createFrames } from "./generate";
+export { createFrames, generateJSON } from "./generate";
