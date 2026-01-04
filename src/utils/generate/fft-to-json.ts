@@ -4,7 +4,10 @@ import path from "path";
 import { extract, createFrames } from "@/utils";
 
 export async function generateJSON(origin: string, destination: string) {
-  const pcm = await extract(origin);
+  const assets = path.join(__dirname, origin);
+  const output = path.join(__dirname, destination);
+
+  const pcm = await extract(assets);
 
   console.log("✅ Success extract PCM: ", pcm.length);
 
@@ -17,12 +20,12 @@ export async function generateJSON(origin: string, destination: string) {
   console.log("✅ Generated frame size: ", frames.length);
 
   const result = {
-    audio: path.basename(origin),
+    audio: path.basename(assets),
     fps: 44100 / 512,
     bars: 64,
     frames,
   };
 
-  fs.writeFileSync(destination, JSON.stringify(result));
-  console.log("✅ Done:", destination);
+  fs.writeFileSync(`${output}.json`, JSON.stringify(result));
+  console.log("✅ Done:", output);
 }

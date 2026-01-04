@@ -14,15 +14,67 @@
         <div id="card-header">
           <h1 class="title">파일 업로드</h1>
         </div>
-        <div id="card-body">
+        <form
+          id="card-body"
+          action="/upload/generate"
+          method="post"
+          enctype="multipart/form-data"
+          onsubmit="upload(event)"
+        >
           <label for="upload-input">
             <div id="upload-box">
-              <h4 id="upload-label">파일 업로드 [.wav]</h4>
+              <h4 id="upload-label">변환할 오디오 파일을 선택해주세요. [.wav]</h4>
             </div>
           </label>
-          <input id="upload-input" type="file" accept=".wav" hidden />
-        </div>
+          <input id="upload-input" name="audio" type="file" accept=".wav" hidden />
+          <button type="submit">오디오 변환 및 업로드</button>
+        </form>
       </div>
     </div>
+    <script>
+      const form = document.querySelector("form");
+      const label = document.getElementById("upload-label");
+
+      const onchange = (e) => {
+        const file = e.target.files[0];
+
+        if (file) {
+          label.innerText = file.name;
+        } else {
+          label.innerText = "변환할 오디오 파일을 선택해주세요. [.wav]";
+        }
+      };
+
+      const setLoading = (isLoading) => {
+        if (isLoading) input.setAttribute("disabled", true);
+        else input.removeAttribute("disabled");
+      };
+
+      const upload = async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+
+        if (input.value != "") {
+          setLoading(true);
+
+          fetch("/upload/generate", {
+            method: "POST",
+            body: formData,
+          }).then((res) => {
+            const status = res.status;
+            if (status == 200) alert("변환 및 업로드가 완료되었습니다.");
+            else alert(res.message);
+          });
+
+          setLoading(false);
+        } else {
+          alert("업로드할 파일을 선택해 주세요.");
+        }
+      };
+
+      const input = document.getElementById("upload-input");
+      input.addEventListener("change", onchange);
+    </script>
   </body>
 </html>
