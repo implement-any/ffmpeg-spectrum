@@ -1,0 +1,86 @@
+* {
+  margin: 0px;
+  padding: 0px;
+  box-sizing: border-box;
+}
+
+#container {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+#background {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  background-size: cover;
+  z-index: -2;
+}
+
+#background-filter {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  background-color: rgba(0, 0, 0, 0.1);
+  z-index: -1;
+}
+
+#card {
+  width: 500px;
+  height: 500px;
+  padding: 20px 15px 15px 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: rgba(0, 0, 0, 0.1) 0px 4px 12px;
+  border-radius: 15px;
+  background-color: white;
+}
+
+#card > label[for="upload-input"] {
+  width: 100%;
+}
+
+#card-header {
+  width: 100%;
+  padding: 0px 0px 15px 0px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+#card-header > .title {
+  font-size: 15px;
+  line-height: 15px;
+  color: rgba(0, 0, 0, 0.8);
+}
+
+#card-body {
+  width: 100%;
+  height: 100%;
+  padding: 15px 0px 0px 0px;
+}
+
+#upload-box {
+  width: 100%;
+  height: 100%;
+  border: 3px dotted rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#upload-label {
+  font-size: 15px;
+  line-height: 15px;
+  color: rgba(0, 0, 0, 0.8);
+}

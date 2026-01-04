@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import type { Frames } from "./audio.controller.type";
 
-import { readJSON, readParseJson, readStat, readStream } from "@/utils";
+import { readFile, readParseJson, readStat, readStream } from "@/utils";
 
 export async function getAudio(req: Request<{ name: string }>, res: Response) {
   const name = req.params.name;
@@ -31,7 +31,7 @@ export async function getAudio(req: Request<{ name: string }>, res: Response) {
 
 export async function getVisualizer(req: Request<{ name: string }>, res: Response) {
   const name = req.params.name;
-  const json = readJSON(`output/${name}.json`);
+  const json = readFile(`output/${name}.json`);
   res.setHeader("Content-Type", "application/json");
   res.send(json);
 }
