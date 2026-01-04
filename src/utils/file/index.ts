@@ -1,1 +1,1 @@
-export { readJSON, readParseJson, readStat, readStream } from "./read";
+export { readFile, readParseJson, readStat, readStream } from "./read";
