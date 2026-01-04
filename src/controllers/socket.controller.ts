@@ -1,11 +1,13 @@
 import ws from "ws";
-import fs from "fs";
-import url from "url";
-import path from "path";
+
+import type { Frames } from "./audio.controller.type";
+import type { SocketParameter } from "./socket.controller.type";
+
+import { readParseJson, getQuery } from "@/utils";
 
 export function socketConnection(ws: ws, req: Request) {
-  const name = url.parse(req.url, true).query.name;
-  const json = JSON.parse(fs.readFileSync(path.join(__dirname, `../output/${name}.json`), "utf-8"));
+  const name = getQuery<SocketParameter>(req).name;
+  const json = readParseJson<Frames>(`output/${name}.json`);
 
   let index = 0;
 
