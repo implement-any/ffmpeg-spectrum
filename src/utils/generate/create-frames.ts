@@ -66,6 +66,14 @@ function normalize(bar: number) {
   return Math.pow(value, 0.7);
 }
 
+/**
+ *
+ * @param current 현재 바 ( 주파수 크기 ) 높이들
+ * @param previous 이전 바 ( 주파수 크기 ) 높이들
+ * @param attack 올라갈 속도 설정
+ * @param release 내려갈 속도 설정
+ * @returns 최종 가공 형태
+ */
 function applyAttackRelease(
   current: number[],
   previous: number[] | null,
@@ -83,6 +91,15 @@ function applyAttackRelease(
 
     return prev * release;
   });
+}
+
+/**
+ *
+ * @param bars 최종 주파스 크기에 대한 배열
+ * @returns 소수점을 3자리 수까지 제한, Math.round 메서드로 부드럽게 깍음
+ */
+function compact(bars: number[]): number[] {
+  return bars.map((bar) => Math.round(bar * 1000) / 1000);
 }
 
 /**
@@ -107,9 +124,10 @@ export function createFrames(
     const rawBars = createBars(magnitudes, barCount);
     const smoothed = smoothBars(rawBars);
     const normalized = smoothed.map(normalize);
-    const release = applyAttackRelease(normalized, prevBars, 0.7, 0.2);
-    frames.push(release);
-    prevBars = release;
+    const delayed = applyAttackRelease(normalized, prevBars, 0.7, 0.2);
+    const compacted = compact(delayed);
+    frames.push(compacted);
+    prevBars = delayed;
   }
 
   return frames;

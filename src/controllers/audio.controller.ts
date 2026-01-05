@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import type { Frames } from "./audio.controller.type";
 
-import { readFile, readParseJson, readStat, readStream } from "@/utils";
+import { readFile, readParseJson, readStat, readStream } from "@/utils/file";
 
 export async function getAudio(req: Request<{ name: string }>, res: Response) {
   const name = req.params.name;

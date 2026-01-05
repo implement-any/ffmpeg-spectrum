@@ -3,7 +3,8 @@ import ws from "ws";
 import type { Frames } from "./audio.controller.type";
 import type { SocketParameter } from "./socket.controller.type";
 
-import { readParseJson, getQuery } from "@/utils";
+import { readParseJson } from "@/utils/file";
+import { getQuery } from "@/utils/parse";
 
 export function socketConnection(ws: ws, req: Request) {
   const name = getQuery<SocketParameter>(req).name;
