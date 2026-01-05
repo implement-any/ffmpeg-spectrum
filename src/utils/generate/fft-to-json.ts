@@ -1,11 +1,12 @@
 import fs from "fs";
 import path from "path";
 
-import { extract, createFrames } from "@/utils";
+import { extract } from "@/utils/pcm";
+import { createFrames } from "@/utils/generate";
 
-export async function generateJSON(origin: string, destination: string) {
-  const assets = path.join(__dirname, origin);
-  const output = path.join(__dirname, destination);
+export async function generateJSON(origin: string, toSave: string) {
+  const assets = path.join(__dirname, `../../assets/audio/${origin}.wav`);
+  const output = path.join(__dirname, `../../output/${toSave}.json`);
 
   const pcm = await extract(assets);
 
@@ -26,6 +27,6 @@ export async function generateJSON(origin: string, destination: string) {
     frames,
   };
 
-  fs.writeFileSync(`${output}.json`, JSON.stringify(result));
+  fs.writeFileSync(output, JSON.stringify(result));
   console.log("✅ Done:", output);
 }
