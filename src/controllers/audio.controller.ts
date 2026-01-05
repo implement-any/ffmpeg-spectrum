@@ -31,14 +31,14 @@ export async function getAudio(req: Request<{ name: string }>, res: Response) {
 
 export async function getVisualizer(req: Request<{ name: string }>, res: Response) {
   const name = req.params.name;
-  const json = readFile(`output/${name}.json`);
+  const json = readFile(`assets/json/${name}.json`);
   res.setHeader("Content-Type", "application/json");
   res.send(json);
 }
 
 export async function getVisualizerInfo(req: Request<{ name: string }>, res: Response) {
   const name = req.params.name;
-  const json = readParseJson<Frames>(`output/${name}.json`);
+  const json = readParseJson<Frames>(`assets/json/${name}.json`);
   res.setHeader("Content-Type", "application/json");
   res.json({ audio: json.audio, fps: json.fps, bars: json.bars });
 }
