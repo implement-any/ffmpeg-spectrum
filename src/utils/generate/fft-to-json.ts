@@ -4,9 +4,9 @@ import path from "path";
 import { extract } from "@/utils/pcm";
 import { createFrames } from "@/utils/generate";
 
-export async function generateJSON(origin: string, toSave: string) {
-  const assets = path.join(__dirname, `../../assets/audio/${origin}.wav`);
-  const output = path.join(__dirname, `../../output/${toSave}.json`);
+export async function generateJSON(name: string) {
+  const assets = path.join(__dirname, `../../assets/audio/${name}.wav`);
+  const output = path.join(__dirname, `../../output/${name}.json`);
 
   const pcm = await extract(assets);
 
