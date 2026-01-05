@@ -6,7 +6,7 @@ import { createFrames } from "@/utils/generate";
 
 export async function generateJSON(name: string) {
   const assets = path.join(__dirname, `../../assets/audio/${name}.wav`);
-  const output = path.join(__dirname, `../../output/${name}.json`);
+  const output = path.join(__dirname, `../../assets/json/${name}.json`);
 
   const pcm = await extract(assets);
 
