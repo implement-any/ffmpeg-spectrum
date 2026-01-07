@@ -1,8 +1,15 @@
 import express from "express";
 
-import { getAudio, getVisualizer, getVisualizerInfo } from "@/controllers/audio.controller";
+import {
+  getAudio,
+  getAudioList,
+  getVisualizer,
+  getVisualizerInfo,
+} from "@/controllers/audio.controller";
 
 const router = express.Router();
+
+router.get("/file/list", getAudioList);
 
 router.get("/file/:name", getAudio);
 

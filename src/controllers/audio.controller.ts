@@ -1,7 +1,8 @@
 import type { Request, Response } from "express";
 import type { Frames } from "./audio.controller.type";
 
-import { readFile, readParseJson, readStat, readStream } from "@/utils/file";
+import { readDir, readFile, readParseJson, readStat, readStream } from "@/utils/file";
+import { replace } from "@/utils/regex";
 
 export async function getAudio(req: Request<{ name: string }>, res: Response) {
   const name = req.params.name;
@@ -27,6 +28,12 @@ export async function getAudio(req: Request<{ name: string }>, res: Response) {
     res.writeHead(200, { "Content-Length": size, "Content-Type": "audio/wav" });
     readStream(dest).pipe(res);
   }
+}
+
+export async function getAudioList(_: Request, res: Response) {
+  const files = readDir(`assets/audio`);
+  res.setHeader("Content-Type", "application/json");
+  res.json(files.map((file) => replace(file, "", "mime")));
 }
 
 export async function getVisualizer(req: Request<{ name: string }>, res: Response) {
