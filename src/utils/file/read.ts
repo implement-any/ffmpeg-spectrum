@@ -3,6 +3,10 @@ import fs from "fs";
 
 const ROOT_DIR = path.resolve(__dirname, "../../");
 
+export function readDir(dest: string): string[] {
+  return fs.readdirSync(path.join(ROOT_DIR, dest));
+}
+
 export function readFile(dest: string): string {
   return fs.readFileSync(path.join(ROOT_DIR, dest), "utf-8");
 }
