@@ -1,10 +1,11 @@
+import path from "path";
 import type { Request, Response } from "express";
 
 import { generateJSON } from "@/utils/generate";
 import { replace } from "@/utils/regex";
 
 export function renderPage(_: Request, res: Response) {
-  res.sendFile("upload.html", { root: "public/page" });
+  res.sendFile("upload.html", { root: path.resolve(__dirname, "../../public/page") });
 }
 
 export async function generateFile(req: Request, res: Response) {
