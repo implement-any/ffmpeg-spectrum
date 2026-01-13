@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs";
 
-const ROOT_DIR = path.resolve(__dirname, "../../");
+import { ROOT_DIR } from "@/utils/file";
 
 export function readDir(dest: string): string[] {
   return fs.readdirSync(path.join(ROOT_DIR, dest));

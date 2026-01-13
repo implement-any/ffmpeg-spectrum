@@ -1,4 +1,8 @@
 node_modules
+public/audio/*
+public/cover/*
+public/db/*
+public/json/*
 assets
 output
 

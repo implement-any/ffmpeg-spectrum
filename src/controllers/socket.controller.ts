@@ -8,7 +8,7 @@ import { getQuery } from "@/utils/parse";
 
 export function socketConnection(ws: ws, req: Request) {
   const name = getQuery<SocketParameter>(req).name;
-  const json = readParseJson<Frames>(`assets/json/${name}.json`);
+  const json = readParseJson<Frames>(`/public/json/${name}.json`);
 
   let index = 0;
 
