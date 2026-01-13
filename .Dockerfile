@@ -35,7 +35,7 @@ RUN npm ci --omit=dev
 # public 폴더 + 권한 설정
 COPY public ./public
 RUN chown -R node:node ./public \
-    && chmod -R 644 ./public
+    && chmod -R 755 ./public
 
 # Node 사용자로 전환
 USER node
