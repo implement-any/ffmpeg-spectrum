@@ -2,7 +2,6 @@ node_modules
 dist
 public/audio/*
 public/cover/*
-public/db/*
 public/json/*
 assets
 output
