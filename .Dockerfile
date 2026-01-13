@@ -4,9 +4,9 @@ FROM node:20 AS builder
 WORKDIR /app
 
 # FFMPEG 설치
-RUN apt-get update && \
-    apt-get install -y ffmpeg && \
-    rm -rf /var/lib/apt/lists/*
+RUN curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz \
+ | tar -xJ \
+ && mv ffmpeg-*/ffmpeg /usr/local/bin/
 
 COPY package*.json ./
 RUN npm ci
