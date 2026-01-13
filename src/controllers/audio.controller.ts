@@ -1,12 +1,12 @@
 import type { Request, Response } from "express";
 import type { Frames } from "./audio.controller.type";
+import type { Music } from "./upload.controller.type";
 
-import { readDir, readFile, readParseJson, readStat, readStream } from "@/utils/file";
-import { replace } from "@/utils/regex";
+import { readFile, readParseJson, readStat, readStream } from "@/utils/file";
 
 export async function getAudio(req: Request<{ name: string }>, res: Response) {
   const name = req.params.name;
-  const dest = `assets/audio/${name}.wav`;
+  const dest = `/public/audio/${name}.wav`;
   const stat = readStat(dest);
   const size = stat.size;
   const range = req.headers.range;
@@ -31,21 +31,21 @@ export async function getAudio(req: Request<{ name: string }>, res: Response) {
 }
 
 export async function getAudioList(_: Request, res: Response) {
-  const files = readDir(`assets/audio`);
+  const files = readParseJson<Music[]>("/public/db/music.json");
   res.setHeader("Content-Type", "application/json");
-  res.json(files.map((file) => replace(file, "", "mime")));
+  res.json(files);
 }
 
 export async function getVisualizer(req: Request<{ name: string }>, res: Response) {
   const name = req.params.name;
-  const json = readFile(`assets/json/${name}.json`);
+  const json = readFile(`/public/json/${name}.json`);
   res.setHeader("Content-Type", "application/json");
   res.send(json);
 }
 
 export async function getVisualizerInfo(req: Request<{ name: string }>, res: Response) {
   const name = req.params.name;
-  const json = readParseJson<Frames>(`assets/json/${name}.json`);
+  const json = readParseJson<Frames>(`/public/json/${name}.json`);
   res.setHeader("Content-Type", "application/json");
   res.json({ audio: json.audio, fps: json.fps, bars: json.bars });
 }

@@ -21,33 +21,60 @@
           enctype="multipart/form-data"
           onsubmit="upload(event)"
         >
-          <label for="upload-input">
-            <div id="upload-box">
-              <h4 id="upload-label">변환할 오디오 파일을 선택해주세요. [.wav]</h4>
-            </div>
-          </label>
-          <input id="upload-input" name="audio" type="file" accept=".wav" hidden />
+          <div id="file-area">
+            <label for="audio-input">
+              <div class="input-box">
+                <h4 id="audio-label">변환할 오디오 파일을 선택해주세요.</h4>
+              </div>
+            </label>
+            <label for="cover-input">
+              <div class="input-box">
+                <h4 id="cover-label">커버 이미지를 선택해 주세요.</h4>
+              </div>
+            </label>
+          </div>
+          <input id="audio-input" name="audio" type="file" accept=".wav" hidden />
+          <input id="cover-input" name="cover" type="file" accept="image/*" hidden />
+          <div class="text-area">
+            <label>제목</label>
+            <input id="text-input" name="title" type="text" />
+          </div>
+          <div class="text-area">
+            <label>아티스트</label>
+            <input id="text-input" name="sub_title" type="text" />
+          </div>
           <button type="submit">오디오 변환 및 업로드</button>
         </form>
       </div>
     </div>
     <script>
-      const form = document.querySelector("form");
-      const label = document.getElementById("upload-label");
+      const LABEL_FIELDS = {
+        audio: { label: "audio-label", text: "변환할 오디오 파일을 선택해주세요." },
+        cover: { label: "cover-label", text: "커버 이미지를 선택해 주세요." },
+      };
 
-      const onchange = (e) => {
+      const form = document.querySelector("form");
+
+      const onChange = (e) => {
         const file = e.target.files[0];
+        const name = e.target.name;
+        const label = document.getElementById(LABEL_FIELDS[name].label);
 
         if (file) {
           label.innerText = file.name;
         } else {
-          label.innerText = "변환할 오디오 파일을 선택해주세요. [.wav]";
+          label.innerText = LABEL_FIELDS[name].text;
         }
       };
 
       const setLoading = (isLoading) => {
-        if (isLoading) input.setAttribute("disabled", true);
-        else input.removeAttribute("disabled");
+        if (isLoading) {
+          audioInput.setAttribute("disabled", true);
+          coverInput.setAttribute("disabled", true);
+        } else {
+          audioInput.removeAttribute("disabled");
+          coverInput.removeAttribute("disabled");
+        }
       };
 
       const upload = async (e) => {
@@ -55,17 +82,20 @@
 
         const formData = new FormData(form);
 
-        if (input.value != "") {
+        if (audioInput.value != "" || coverInput.value != "") {
           setLoading(true);
 
-          fetch("/upload/generate", {
+          await fetch("/upload/generate", {
             method: "POST",
             body: formData,
-          }).then((res) => {
-            const status = res.status;
-            if (status == 200) alert("변환 및 업로드가 완료되었습니다.");
-            else alert(res.message);
-          });
+          })
+            .then((res) => {
+              const status = res.status;
+              alert("변환 및 업로드가 완료되었습니다.");
+            })
+            .catch((error) => {
+              alert(error.message);
+            });
 
           setLoading(false);
         } else {
@@ -73,8 +103,10 @@
         }
       };
 
-      const input = document.getElementById("upload-input");
-      input.addEventListener("change", onchange);
+      const audioInput = document.getElementById("audio-input");
+      const coverInput = document.getElementById("cover-input");
+      audioInput.addEventListener("change", onChange);
+      coverInput.addEventListener("change", onChange);
     </script>
   </body>
 </html>

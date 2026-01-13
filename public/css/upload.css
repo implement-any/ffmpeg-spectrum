@@ -44,7 +44,7 @@
   background-color: white;
 }
 
-#card > label[for="upload-input"] {
+#card > label[for="audio-input"] {
   width: 100%;
 }
 
@@ -66,11 +66,13 @@
   width: 100%;
   height: 100%;
   padding: 10px 0px 0px 0px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 #card-body > button[type="submit"] {
   width: 100%;
-  margin-top: 10px;
   padding: 10px 0px;
   background-color: transparent;
   border: 1px solid rgba(0, 0, 0, 0.2);
@@ -84,9 +86,21 @@
   color: white;
 }
 
-#upload-box {
+#file-area {
   width: 100%;
-  height: 350px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+}
+
+#file-area > label {
+  width: 100%;
+}
+
+.input-box {
+  width: 100%;
+  height: 230px;
   border: 3px dotted rgba(0, 0, 0, 0.2);
   border-radius: 10px;
   display: flex;
@@ -94,8 +108,27 @@
   align-items: center;
 }
 
-#upload-label {
-  font-size: 15px;
-  line-height: 15px;
+.input-box > h4 {
+  font-size: 12px;
+  line-height: 12px;
   color: rgba(0, 0, 0, 0.8);
+}
+
+.text-area {
+  width: 100%;
+  display: flex;
+  justify-content: start;
+  align-items: center;
+  gap: 5px;
+}
+
+.text-area > label {
+  width: 60px;
+}
+
+.text-area > input[id="text-input"] {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
 }

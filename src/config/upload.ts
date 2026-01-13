@@ -3,8 +3,12 @@ import multer from "multer";
 import { replace } from "@/utils/regex";
 
 const storage = multer.diskStorage({
-  destination: (_, __, callback) => {
-    callback(null, "src/assets/audio");
+  destination: (_, file, callback) => {
+    if (file.fieldname == "audio") {
+      callback(null, "public/audio");
+    } else if (file.fieldname == "cover") {
+      callback(null, "public/cover");
+    }
   },
   filename: (_, file, callback) => {
     const name = file.originalname;

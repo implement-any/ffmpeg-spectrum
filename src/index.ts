@@ -18,7 +18,8 @@ const app = express();
 const server = http.createServer(app);
 
 // Resource
-app.use(express.static(path.resolve(__dirname, "../public")));
+app.use("/css", express.static(path.join(process.cwd(), "public/css")));
+app.use("/cover", express.static(path.join(process.cwd(), "public/cover")));
 
 // Router
 app.use("/audio", audio);
