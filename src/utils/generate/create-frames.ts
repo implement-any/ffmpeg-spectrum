@@ -1,5 +1,4 @@
 import FFT from "fft.js";
-
 import type { FFTOptions } from "./create-framse.type";
 
 function hannWindow(input: number[]): number[] {
@@ -24,30 +23,66 @@ function createSpectrum(fft: FFT, input: number[]): number[] {
   return complex;
 }
 
-function createMagnitudes(spectrum: number[]): number[] {
-  const magnitudes = [];
+function createPowers(spectrum: number[]): number[] {
+  const powers: number[] = [];
 
   for (let i = 0; i < (spectrum.length / 4) * 2; i += 2) {
     const re = spectrum[i];
     const im = spectrum[i + 1];
-    magnitudes.push(Math.sqrt(re * re + im * im));
+    powers.push(re * re + im * im);
   }
 
-  return magnitudes;
+  if (powers.length > 0) powers[0] = 0;
+
+  return powers;
 }
 
-function createBars(magnitudes: number[], barCount: number): number[] {
+function hzToBin(hz: number, sampleRate: number, fftSize: number) {
+  return Math.round((hz * fftSize) / sampleRate);
+}
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function createBarsLogFromPowers(
+  powers: number[],
+  barCount: number,
+  sampleRate: number,
+  fftSize: number,
+  minHz = 40,
+  maxHz = 16000
+): number[] {
+  const nyquist = sampleRate / 2;
+  const max = Math.min(maxHz, nyquist);
+
+  const minBin = clamp(hzToBin(minHz, sampleRate, fftSize), 1, powers.length - 1);
+  const maxBin = clamp(hzToBin(max, sampleRate, fftSize), 1, powers.length - 1);
+
   const bars = new Array(barCount).fill(0);
-  const counts = new Array(barCount).fill(0);
 
-  for (let i = 0; i < magnitudes.length; i++) {
-    const index = Math.floor((i / magnitudes.length) * barCount);
-    bars[index] += magnitudes[i];
-    counts[index]++;
-  }
+  const logMin = Math.log(minHz);
+  const logMax = Math.log(max);
+  const step = (logMax - logMin) / barCount;
 
-  for (let i = 0; i < barCount; i++) {
-    if (counts[i] > 0) bars[i] /= counts[i];
+  for (let b = 0; b < barCount; b++) {
+    const f0 = Math.exp(logMin + step * b);
+    const f1 = Math.exp(logMin + step * (b + 1));
+
+    let start = clamp(hzToBin(f0, sampleRate, fftSize), minBin, maxBin);
+    let end = clamp(hzToBin(f1, sampleRate, fftSize), minBin, maxBin);
+
+    if (end <= start) end = start + 1;
+    end = Math.min(end, maxBin);
+
+    let sum = 0;
+    let count = 0;
+
+    for (let i = start; i <= end; i++) {
+      sum += powers[i];
+      count++;
+    }
+
+    bars[b] = count > 0 ? sum / count : 0;
   }
 
   return bars;
@@ -61,73 +96,123 @@ function smoothBars(bars: number[]): number[] {
   });
 }
 
-function normalize(bar: number) {
-  const value = Math.log10(bar + 1);
+function normalizeFromPower(power: number) {
+  const value = Math.log10(power + 1);
   return Math.pow(value, 0.7);
 }
 
-/**
- *
- * @param current 현재 바 ( 주파수 크기 ) 높이들
- * @param previous 이전 바 ( 주파수 크기 ) 높이들
- * @param attack 올라갈 속도 설정
- * @param release 내려갈 속도 설정
- * @returns 최종 가공 형태
- */
 function applyAttackRelease(
   current: number[],
   previous: number[] | null,
-  attack = 0.8,
-  release = 0.9
+  attack = 0.75,
+  release = 0.12
 ): number[] {
   if (!previous) return current;
 
   return current.map((value, i) => {
     const prev = previous[i] ?? 0;
-
-    if (value > prev) {
-      return prev + (value - prev) * attack;
-    }
-
-    return prev * release;
+    const k = value > prev ? attack : release;
+    return prev + (value - prev) * k;
   });
 }
 
-/**
- *
- * @param bars 최종 주파스 크기에 대한 배열
- * @returns 소수점을 3자리 수까지 제한, Math.round 메서드로 부드럽게 깍음
- */
-function compact(bars: number[]): number[] {
-  return bars.map((bar) => Math.round(bar * 1000) / 1000);
+function applyEMA(current: number[], prevEma: number[] | null, alpha = 0.3) {
+  if (!prevEma) return current;
+  return current.map((v, i) => {
+    const p = prevEma[i] ?? 0;
+    return p + (v - p) * alpha;
+  });
 }
 
-/**
- *
- * @param pcm 추출한 PCM 데이터
- * @param options 주파수 해상도, 이동 간격, 바 개수
- * @returns 1024 / 44100 => 23ms 프레임 별 Magnitude 값을 담은 배열
- */
+function clamp01(v: number) {
+  return Math.max(0, Math.min(1, v));
+}
+
+function compact(bars: number[], digits = 3): number[] {
+  const m = Math.pow(10, digits);
+  return bars.map((bar) => Math.round(bar * m) / m);
+}
+
+function percentile(values: number[], p: number) {
+  if (values.length === 0) return 1;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.floor((sorted.length - 1) * p);
+  return sorted[idx] ?? 1;
+}
+
+function computeBarRefsP95(frames: number[][], p = 0.95) {
+  if (frames.length === 0) return [];
+  const barCount = frames[0].length;
+
+  const perBar: number[][] = Array.from({ length: barCount }, () => []);
+
+  for (const f of frames) {
+    for (let i = 0; i < barCount; i++) {
+      perBar[i].push(f[i] ?? 0);
+    }
+  }
+
+  return perBar.map((arr) => {
+    const ref = percentile(arr, p);
+    return Math.max(ref, 1e-6); // 0.000001
+  });
+}
+
 export function createFrames(
   pcm: number[],
-  { fftSize = 1024, hopSize = 512, barCount = 64 }: FFTOptions
+  {
+    fftSize = 1024,
+    hopSize = 512,
+    barCount = 64,
+    sampleRate = 44100,
+    minHz = 40,
+    maxHz = 16000,
+    attack = 0.75,
+    release = 0.12,
+    emaAlpha = 0.3,
+    calibrationSeconds = 8,
+    compactDigits = 3,
+  }: FFTOptions = {}
 ) {
   const fft = new FFT(fftSize);
-  const frames = [];
 
-  let prevBars: number[] | null = null;
+  const normalizedFrames: number[][] = [];
 
-  for (let offset = 0; offset + fftSize < pcm.length; offset += hopSize) {
+  for (let offset = 0; offset + fftSize <= pcm.length; offset += hopSize) {
     const input = chunk(pcm, fftSize, offset);
     const spectrum = createSpectrum(fft, input);
-    const magnitudes = createMagnitudes(spectrum);
-    const rawBars = createBars(magnitudes, barCount);
+    const powers = createPowers(spectrum);
+
+    const rawBars = createBarsLogFromPowers(powers, barCount, sampleRate, fftSize, minHz, maxHz);
+
     const smoothed = smoothBars(rawBars);
-    const normalized = smoothed.map(normalize);
-    const delayed = applyAttackRelease(normalized, prevBars, 0.7, 0.2);
-    const compacted = compact(delayed);
-    frames.push(compacted);
-    prevBars = delayed;
+    const normalized = smoothed.map(normalizeFromPower);
+
+    normalizedFrames.push(normalized);
+  }
+
+  const fps = sampleRate / hopSize;
+  const calibrationFrameCount = Math.max(1, Math.floor(calibrationSeconds * fps));
+  const calibrationSlice = normalizedFrames.slice(0, calibrationFrameCount);
+
+  const refs = computeBarRefsP95(calibrationSlice, 0.95);
+
+  const frames: number[][] = [];
+  let prevBars: number[] | null = null;
+  let prevEma: number[] | null = null;
+
+  for (const normalized of normalizedFrames) {
+    const scaled = normalized.map((v, i) => v / (refs[i] ?? 1));
+
+    const eased = applyAttackRelease(scaled, prevBars, attack, release);
+    const ema = applyEMA(eased, prevEma, emaAlpha);
+
+    const clamped = ema.map(clamp01);
+
+    frames.push(compact(clamped, compactDigits));
+
+    prevBars = clamped;
+    prevEma = clamped;
   }
 
   return frames;
