@@ -1,8 +1,6 @@
 import path from "path";
 import type { Request, Response } from "express";
 
-import type { Music } from "./upload.controller.type";
-
 import { generateJSON } from "@/utils/generate";
 import { replace } from "@/utils/regex";
 import { resize, getBlurHash } from "@/utils/image";

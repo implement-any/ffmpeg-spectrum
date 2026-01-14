@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "audioId": "canto_ix_boss_2_battle_theme",
+    "cover": "/cover/battle_deeparea_lab.png",
+    "blurHash": "U66[XUW94TkC.AfiMwae00oz.9ae8^oMx^og",
+    "title": "Canto IX Boss 2 Battle Theme",
+    "subTitle": "Project Moon"
+  },
+  {
+    "audioId": "canto_ix_boss_1_battle_theme",
+    "cover": "/cover/battle_w_truck_rebirth.png",
+    "blurHash": "U65i4rryHrt*?^nURPpGDhWBx]jGMdbrozVu",
+    "title": "Canto IX Boss 1 Battle Theme",
+    "subTitle": "Project Moon"
+  }
+]
