@@ -64,9 +64,15 @@ function createBarsLogFromPowers(
   const logMax = Math.log(max);
   const step = (logMax - logMin) / barCount;
 
+  const pivotHz = 1600;
+  const tiltAlpha = 0.9;
+  const lowCutHz = 250;
+  const lowSuppress = 0.1;
+
   for (let b = 0; b < barCount; b++) {
     const f0 = Math.exp(logMin + step * b);
     const f1 = Math.exp(logMin + step * (b + 1));
+    const fc = Math.sqrt(f0 * f1);
 
     let start = clamp(hzToBin(f0, sampleRate, fftSize), minBin, maxBin);
     let end = clamp(hzToBin(f1, sampleRate, fftSize), minBin, maxBin);
@@ -82,7 +88,14 @@ function createBarsLogFromPowers(
       count++;
     }
 
-    bars[b] = count > 0 ? sum / count : 0;
+    let v = count > 0 ? sum / count : 0;
+
+    const tilt = Math.pow(fc / pivotHz, tiltAlpha);
+    const low = fc < lowCutHz ? lowSuppress : 1.0;
+
+    v *= tilt * low;
+
+    bars[b] = v;
   }
 
   return bars;
@@ -96,16 +109,16 @@ function smoothBars(bars: number[]): number[] {
   });
 }
 
-function normalizeFromPower(power: number) {
-  const value = Math.log10(power + 1);
-  return Math.pow(value, 0.7);
+function normalizeFromMag(mag: number) {
+  const value = Math.log10(mag + 1);
+  return Math.pow(value, 0.8);
 }
 
 function applyAttackRelease(
   current: number[],
   previous: number[] | null,
-  attack = 0.75,
-  release = 0.12
+  attack = 0.8,
+  release = 0.22
 ): number[] {
   if (!previous) return current;
 
@@ -158,6 +171,20 @@ function computeBarRefsP95(frames: number[][], p = 0.95) {
   });
 }
 
+function softLimit(x: number) {
+  return x / (1 + x);
+}
+
+function gamma(x: number) {
+  const g = 1.6;
+  return Math.pow(x, g);
+}
+
+function transientBoost(cur: number[], prev: number[] | null, amount = 1.2) {
+  if (!prev) return cur;
+  return cur.map((v, i) => v + Math.max(0, v - (prev[i] ?? 0)) * amount);
+}
+
 export function createFrames(
   pcm: number[],
   {
@@ -167,10 +194,10 @@ export function createFrames(
     sampleRate = 44100,
     minHz = 40,
     maxHz = 16000,
-    attack = 0.75,
-    release = 0.12,
-    emaAlpha = 0.3,
-    calibrationSeconds = 8,
+    attack = 0.9,
+    release = 0.35,
+    emaAlpha = 0.6,
+    calibrationSeconds = 20,
     compactDigits = 3,
   }: FFTOptions = {}
 ) {
@@ -186,7 +213,7 @@ export function createFrames(
     const rawBars = createBarsLogFromPowers(powers, barCount, sampleRate, fftSize, minHz, maxHz);
 
     const smoothed = smoothBars(rawBars);
-    const normalized = smoothed.map(normalizeFromPower);
+    const normalized = smoothed.map(normalizeFromMag);
 
     normalizedFrames.push(normalized);
   }
@@ -195,24 +222,34 @@ export function createFrames(
   const calibrationFrameCount = Math.max(1, Math.floor(calibrationSeconds * fps));
   const calibrationSlice = normalizedFrames.slice(0, calibrationFrameCount);
 
-  const refs = computeBarRefsP95(calibrationSlice, 0.95);
+  const globalRef = percentile(calibrationSlice.flat(), 0.95);
+  const refsBar = computeBarRefsP95(calibrationSlice, 0.95);
+  const refs = refsBar.map((r, i) => {
+    const t = i / (refsBar.length - 1);
+    const wGlobal = 0.15 + 0.35 * t;
+    const wBar = 1 - wGlobal;
+
+    return wBar * r + wGlobal * globalRef;
+  });
 
   const frames: number[][] = [];
   let prevBars: number[] | null = null;
-  let prevEma: number[] | null = null;
+  let prevNorm: number[] | null = null;
 
   for (const normalized of normalizedFrames) {
-    const scaled = normalized.map((v, i) => v / (refs[i] ?? 1));
+    const scaled = normalized.map((v, i) => (v / (refs[i] ?? 1)) * 2.2);
 
-    const eased = applyAttackRelease(scaled, prevBars, attack, release);
-    const ema = applyEMA(eased, prevEma, emaAlpha);
+    const shaped0 = scaled.map(softLimit).map(gamma);
 
-    const clamped = ema.map(clamp01);
+    const punched = transientBoost(shaped0, prevNorm, 1.2);
+    prevNorm = punched;
 
-    frames.push(compact(clamped, compactDigits));
+    const eased = applyAttackRelease(punched, prevBars, attack, release);
 
-    prevBars = clamped;
-    prevEma = clamped;
+    const out = eased.map(clamp01);
+
+    frames.push(compact(out, compactDigits));
+    prevBars = out;
   }
 
   return frames;

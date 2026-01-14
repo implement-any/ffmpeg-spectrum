@@ -35,7 +35,7 @@ export async function generateFile(req: Request, res: Response) {
       subTitle: subTitle,
     };
 
-    appendWriteJson("/public/db/music.json", row);
+    appendWriteJson("/public/db/music.json", row, (data) => row.audioId == data.audioId);
     res.sendStatus(200);
   } catch (e) {
     res.status(500).json({ message: "파일 업로드에 실패하였습니다." });

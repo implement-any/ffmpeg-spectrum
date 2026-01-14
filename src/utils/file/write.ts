@@ -8,8 +8,9 @@ export function writeJson(output: string, json: unknown) {
   fs.writeFileSync(path.join(ROOT_DIR, output), JSON.stringify(json));
 }
 
-export function appendWriteJson<T>(output: string, row: T) {
+export function appendWriteJson<T>(output: string, row: T, search: (arr: T) => boolean) {
   const read = readParseJson<T[]>(output);
-  read.push(row);
+  const exist = read.find(search);
+  if (!exist) read.push(row);
   writeJson(output, read);
 }

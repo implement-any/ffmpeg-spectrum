@@ -36,16 +36,15 @@ export async function getAudioList(_: Request, res: Response) {
   res.json(files);
 }
 
-export async function getVisualizer(req: Request<{ name: string }>, res: Response) {
+export async function getVisualizerBin(req: Request<{ name: string }>, res: Response) {
   const name = req.params.name;
-  const json = readFile(`/public/json/${name}.json`);
-  res.setHeader("Content-Type", "application/json");
-  res.send(json);
+  res.setHeader("Content-Type", "application/octet-stream");
+  readStream(`/public/json/${name}.bin`).pipe(res);
 }
 
-export async function getVisualizerInfo(req: Request<{ name: string }>, res: Response) {
+export async function getVisualizerMeta(req: Request<{ name: string }>, res: Response) {
   const name = req.params.name;
-  const json = readParseJson<Frames>(`/public/json/${name}.json`);
+  const json = readParseJson<Frames>(`/public/json/${name}.meta.json`);
   res.setHeader("Content-Type", "application/json");
-  res.json({ audio: json.audio, fps: json.fps, bars: json.bars });
+  res.json(json);
 }
