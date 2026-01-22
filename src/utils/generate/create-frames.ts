@@ -1,265 +1,341 @@
 import FFT from "fft.js";
-import type { FFTOptions } from "./create-framse.type";
+import type { FFTOptions, FrequencyBand } from "./create-framse.type";
 
-function hannWindow(input: number[]): number[] {
-  const N = input.length;
-  return input.map((x, n) => x * 0.5 * (1 - Math.cos((2 * Math.PI * n) / (N - 1))));
+/** EDM 최적화 주파수 대역 설정 */
+const FREQUENCY_BANDS: FrequencyBand[] = [
+  { range: [20, 60], boost: 1.5, decay: 0.88 },
+  { range: [60, 150], boost: 1.6, decay: 0.85 },
+  { range: [150, 300], boost: 1.3, decay: 0.87 },
+  { range: [300, 2000], boost: 1.0, decay: 0.78 },
+  { range: [2000, 8000], boost: 0.85, decay: 0.72 },
+  { range: [8000, 16000], boost: 0.7, decay: 0.65 },
+];
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
+
+const clamp01 = (value: number) => clamp(value, 0, 1);
+
+const hzToBin = (hz: number, sampleRate: number, fftSize: number): number => {
+  return Math.round((hz * fftSize) / sampleRate);
 }
 
-function chunk(pcm: number[], fftSize: number, offset: number): number[] {
-  let input = pcm.slice(offset, offset + fftSize);
-  if (offset + fftSize > pcm.length)
-    input = input.concat(new Array(fftSize - input.length).fill(0));
-  return input;
+/** 스펙트럼 누출 방지를 위한 Hann Window 적용 함수 */
+function applyHannWindow(samples: number[]): number[] {
+  const N = samples.length;
+  const factor = (2 * Math.PI) / (N - 1);
+  return samples.map((sample, n) => sample * 0.5 * (1 - Math.cos(factor * n)));
 }
 
-function createSpectrum(fft: FFT, input: number[]): number[] {
-  const complex = fft.createComplexArray();
-  fft.realTransform(complex, hannWindow(input));
-  fft.completeSpectrum(complex);
-  return complex;
+/** PCM에서 FFT용 청크를 추출하는 함수 */
+function extractChunk(pcm: number[], fftSize: number, offset: number): number[] {
+  const chunk = pcm.slice(offset, offset + fftSize);
+  if (chunk.length < fftSize) {
+    return [...chunk, ...new Array(fftSize - chunk.length).fill(0)];
+  }
+  return chunk;
 }
 
-function createMangitudes(spectrum: number[]): number[] {
+/** FFT를 수행해 복소수 스펙트럼을 생성하는 함수 */
+function computeSpectrum(fft: FFT, samples: number[]): number[] {
+  const windowed = applyHannWindow(samples);
+  const spectrum = fft.createComplexArray();
+  fft.realTransform(spectrum, windowed);
+  fft.completeSpectrum(spectrum);
+  return spectrum;
+}
+
+/** 복소수 스펙트럼에서 파워를 계산하는 함수 */
+function computePowerSpectrum(spectrum: number[]): number[] {
   const powers: number[] = [];
-  for (let i = 0; i < (spectrum.length / 4) * 2; i += 2) {
+  const halfLength = spectrum.length / 2;
+
+  /** 주파수 크기 구하는 공식을 적용하여 파워를 계산 */
+  for (let i = 0; i < halfLength; i += 2) {
     const re = spectrum[i];
     const im = spectrum[i + 1];
     powers.push(re * re + im * im);
   }
+
   if (powers.length > 0) powers[0] = 0;
   return powers;
 }
 
-function hzToBin(hz: number, sampleRate: number, fftSize: number) {
-  return Math.round((hz * fftSize) / sampleRate);
-}
-
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
-
-function clamp01(value: number) {
-  return Math.max(0, Math.min(1, value));
-}
-
-function percentile(values: number[], p: number) {
-  if (values.length === 0) return 1;
-  const sorted = [...values].sort((a, b) => a - b);
-  const idx = Math.floor((sorted.length - 1) * p);
-  return sorted[idx] ?? 1;
-}
-
-function shapeMag(value: number) {
-  const x = Math.log10(value + 1);
-  return Math.pow(x, 1.55);
-}
-
-function smoothCircular(bars: number[], amount = 0.35) {
-  if (amount <= 0) return bars;
-  const n = bars.length;
-  const out = new Array(n);
-  for (let i = 0; i < n; i++) {
-    const prev = bars[(i - 1 + n) % n];
-    const cur = bars[i];
-    const next = bars[(i + 1) % n];
-    const s = (prev + cur * 2 + next) / 4;
-    out[i] = cur * (1 - amount) + s * amount;
-  }
-  return out;
-}
-
-function createBarsLog(
+/** 특정 주파수 대역의 평균 에너지를 계산하는 함수 */
+function getBandEnergy(
   powers: number[],
-  barCount: number,
-  sampleRate: number,
-  fftSize: number,
-  minHz: number,
-  maxHz: number
-) {
-  const nyquist = sampleRate / 2;
-  const max = Math.min(maxHz, nyquist);
-
-  const minBin = clamp(hzToBin(minHz, sampleRate, fftSize), 1, powers.length - 1);
-  const maxBin = clamp(hzToBin(max, sampleRate, fftSize), 1, powers.length - 1);
-
-  const bars = new Array(barCount).fill(0);
-
-  const logMin = Math.log(minHz);
-  const logMax = Math.log(max);
-  const step = (logMax - logMin) / barCount;
-
-  for (let b = 0; b < barCount; b++) {
-    const f0 = Math.exp(logMin + step * b);
-    const f1 = Math.exp(logMin + step * (b + 1));
-    const fc = Math.sqrt(f0 * f1);
-
-    let start = clamp(hzToBin(f0, sampleRate, fftSize), minBin, maxBin);
-    let end = clamp(hzToBin(f1, sampleRate, fftSize), minBin, maxBin);
-
-    if (end <= start) end = start + 1;
-    end = Math.min(end, maxBin);
-
-    let sum = 0;
-    let count = 0;
-
-    for (let i = start; i <= end; i++) {
-      sum += powers[i];
-      count++;
-    }
-
-    let value = count ? sum / count : 0;
-
-    const hiDamp = Math.pow(fc / 2600, 0.16);
-    value /= 1 + hiDamp;
-
-    bars[b] = value;
-  }
-  return bars;
-}
-
-function bandEnergy(
-  powers: number[],
-  sampleRate: number,
-  fftSize: number,
   loHz: number,
-  hiHz: number
-) {
+  hiHz: number,
+  sampleRate: number,
+  fftSize: number
+): number {
   const nyquist = sampleRate / 2;
   const lo = clamp(hzToBin(loHz, sampleRate, fftSize), 1, powers.length - 1);
   const hi = clamp(hzToBin(Math.min(hiHz, nyquist), sampleRate, fftSize), 1, powers.length - 1);
 
   let sum = 0;
-  let count = 0;
   for (let i = lo; i <= hi; i++) {
     sum += powers[i];
-    count++;
   }
-  return count ? sum / count : 0;
+  return sum / (hi - lo + 1);
 }
 
-function smoothRangeCircular(bars: number[], start: number, end: number, amount = 0.55) {
-  const out = bars.slice();
-  for (let i = start; i <= end; i++) {
-    const prev = bars[i - 1] ?? bars[i];
-    const cur = bars[i];
-    const next = bars[i + 1] ?? bars[i];
-    const s = (prev + cur * 2 + next) / 4;
-    out[i] = cur * (1 - amount) + s * amount;
+/** 로그 스케일로 시각화 바를 생성하는 함수 */
+function createLogScaleBars(
+  powers: number[],
+  barCount: number,
+  sampleRate: number,
+  fftSize: number,
+  minHz: number,
+  maxHz: number,
+  bands: FrequencyBand[]
+): number[] {
+  const nyquist = sampleRate / 2;
+  const effectiveMaxHz = Math.min(maxHz, nyquist);
+
+  const logMin = Math.log(minHz);
+  const logMax = Math.log(effectiveMaxHz);
+  const logStep = (logMax - logMin) / barCount;
+
+  const bars: number[] = [];
+
+  for (let b = 0; b < barCount; b++) {
+    const freqLo = Math.exp(logMin + logStep * b);
+    const freqHi = Math.exp(logMin + logStep * (b + 1));
+    const freqCenter = Math.sqrt(freqLo * freqHi);
+
+    let binStart = clamp(hzToBin(freqLo, sampleRate, fftSize), 1, powers.length - 1);
+    let binEnd = clamp(hzToBin(freqHi, sampleRate, fftSize), 1, powers.length - 1);
+
+    if (binEnd <= binStart) binEnd = binStart + 1;
+    binEnd = Math.min(binEnd, powers.length - 1);
+
+    let sum = 0;
+    for (let i = binStart; i <= binEnd; i++) {
+      sum += powers[i];
+    }
+    let value = sum / (binEnd - binStart + 1);
+
+    const band = bands.find(
+      (band) => freqCenter >= band.range[0] && freqCenter < band.range[1]
+    );
+    if (band) {
+      value *= band.boost;
+    }
+
+    bars.push(value);
   }
-  return out;
+
+  return bars;
 }
 
+/** 킥 드럼을 감지하는 함수 */
+function detectKick(
+  currentEnergy: number,
+  previousEnergy: number,
+  sensitivity: number
+): number {
+  if (previousEnergy < 0.0001) return 0;
+
+  const ratio = currentEnergy / previousEnergy;
+  const threshold = 1.0 + 0.5 / sensitivity;
+
+  if (ratio > threshold) {
+    return clamp01((ratio - threshold) * sensitivity * 0.5);
+  }
+  return 0;
+}
+
+/** 사이드체인 펌핑 효과를 적용하는 함수 */
+function applySidechainPumping(
+  bars: number[],
+  kickIntensity: number,
+  pumpingStrength: number,
+  barCount: number
+): number[] {
+  if (pumpingStrength <= 0 || kickIntensity <= 0) return bars;
+
+  return bars.map((value, index) => {
+    const position = index / barCount;
+    const pumpAmount = kickIntensity * pumpingStrength * position * 0.6;
+    return value * Math.max(1 - pumpAmount, 0.6);
+  });
+}
+
+/** 킥에 반응해 저역대를 부스트하는 함수 */
+function applyKickBoost(
+  bars: number[],
+  kickEnvelope: number,
+  barCount: number
+): number[] {
+  const lowEndRatio = 0.25;
+  const lowEndCount = Math.floor(barCount * lowEndRatio);
+
+  return bars.map((value, index) => {
+    if (index < lowEndCount) {
+      const boostFactor = 1 + kickEnvelope * 0.5;
+      return value * boostFactor;
+    }
+    return value;
+  });
+}
+
+/** Attack/Decay EMA를 적용하는 함수 */
+function applyAttackDecay(
+  current: number[],
+  previous: number[] | null,
+  attackAlpha: number,
+  decayAlpha: number
+): number[] {
+  if (!previous) return current;
+
+  return current.map((value, index) => {
+    const prev = previous[index] ?? 0;
+    const alpha = value > prev ? attackAlpha : decayAlpha;
+    return prev + (value - prev) * alpha;
+  });
+}
+
+/** 원형 시각화를 위한 스무딩 함수 */
+function smoothCircular(bars: number[], strength: number): number[] {
+  if (strength <= 0) return bars;
+
+  const n = bars.length;
+  return bars.map((current, i) => {
+    const prev = bars[(i - 1 + n) % n];
+    const next = bars[(i + 1) % n];
+    const smoothed = (prev + current * 2 + next) / 4;
+    return current * (1 - strength) + smoothed * strength;
+  });
+}
+
+/** 로그 스케일로 값을 정규화하는 함수 */
+function normalizeWithLog(value: number, reference: number): number {
+  const normalized = value / Math.max(reference, 1e-9);
+  const logged = Math.log10(normalized + 1);
+  return Math.pow(logged, 0.7);
+}
+
+/** 백분위수를 계산하는 함수 */
+function percentile(values: number[], p: number): number {
+  if (values.length === 0) return 1;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.floor((sorted.length - 1) * p);
+  return sorted[index] ?? 1;
+}
+
+/** 캘리브레이션 기준값을 계산하는 함수 */
+function calculateCalibration(
+  rawFrames: number[][],
+  bassEnergies: number[],
+  calibrationFrameCount: number,
+  barCount: number
+): { barReferences: number[]; bassReference: number } {
+  const calFrames = rawFrames.slice(0, calibrationFrameCount);
+  const calBass = bassEnergies.slice(0, calibrationFrameCount);
+
+  const barReferences = Array.from({ length: barCount }, (_, barIndex) => {
+    const values = calFrames.map((frame) => frame[barIndex] ?? 0);
+    return percentile(values, 0.95);
+  });
+
+  const bassReference = percentile(
+    calBass.map((e) => Math.log10(e + 1)),
+    0.95
+  );
+
+  return {
+    barReferences: barReferences.map((r) => Math.max(r, 1e-9)),
+    bassReference: Math.max(bassReference, 1e-6),
+  };
+}
+
+/** PCM 오디오에서 시각화 프레임을 생성하는 메인 함수 */
 export function createFrames(
   pcm: number[],
-  {
-    fftSize = 1024,
+  options: FFTOptions = {}
+): number[][] {
+  const {
+    fftSize = 2048,
     hopSize = 512,
     barCount = 64,
     sampleRate = 44100,
-    minHz = 40,
+    minHz = 30,
     maxHz = 16000,
-    calibrationSeconds = 15,
+    kickSensitivity = 1.3,
+    pumpingIntensity = 0.3,
+    bassBoost = 1.4,
+    attackSpeed = 0.65,
+    decaySpeed = 0.15,
+    smoothing = 0.25,
+    calibrationSeconds = 10,
     compactDigits = 3,
-  }: FFTOptions = {}
-) {
+  } = options;
+
+  const bands = FREQUENCY_BANDS.map((band) => ({
+    ...band,
+    boost: band.range[1] <= 300 ? band.boost * bassBoost : band.boost,
+  }));
+
   const fft = new FFT(fftSize);
+  const multiplier = Math.pow(10, compactDigits);
+
+  // 1단계: raw 데이터 수집
   const rawBarsFrames: number[][] = [];
-  const bassTrack: number[] = [];
+  const bassEnergies: number[] = [];
 
   for (let offset = 0; offset + fftSize <= pcm.length; offset += hopSize) {
-    const input = chunk(pcm, fftSize, offset);
-    const spectrum = createSpectrum(fft, input);
-    const powers = createMangitudes(spectrum);
+    const chunk = extractChunk(pcm, fftSize, offset);
+    const spectrum = computeSpectrum(fft, chunk);
+    const powers = computePowerSpectrum(spectrum);
 
-    rawBarsFrames.push(createBarsLog(powers, barCount, sampleRate, fftSize, minHz, maxHz));
-    bassTrack.push(bandEnergy(powers, sampleRate, fftSize, 40, 140));
+    const bars = createLogScaleBars(
+      powers, barCount, sampleRate, fftSize, minHz, maxHz, bands
+    );
+    rawBarsFrames.push(bars);
+
+    const bassEnergy = getBandEnergy(powers, 60, 150, sampleRate, fftSize);
+    bassEnergies.push(bassEnergy);
   }
 
+  // 2단계: 캘리브레이션
   const fps = sampleRate / hopSize;
   const calibrationFrameCount = Math.max(1, Math.floor(calibrationSeconds * fps));
 
-  const calBars = rawBarsFrames.slice(0, calibrationFrameCount);
-  const perBar: number[][] = Array.from({ length: barCount }, () => []);
+  const { barReferences } = calculateCalibration(
+    rawBarsFrames,
+    bassEnergies,
+    calibrationFrameCount,
+    barCount
+  );
 
-  for (const f of calBars) for (let i = 0; i < barCount; i++) perBar[i].push(f[i] ?? 0);
-
-  const barRef = perBar.map((arr) => Math.max(percentile(arr, 0.95), 1e-9));
-  const calBass = bassTrack.slice(0, calibrationFrameCount).map((e) => Math.log10(e + 1));
-  const bassRef = Math.max(percentile(calBass, 0.95), 1e-6);
-
+  // 3단계: 프레임별 처리
   const frames: number[][] = [];
-  const lowEnd = 14;
-
-  let prevOut: number[] | null = null;
-
-  let bassFast = 0;
-  let bassSlow = 0;
-  let kickEnv = 0;
-
-  const alphaLow = 0.5;
-  const alphaHi = 0.3;
-
-  const lowBase = 0.03;
-  const lowBaseKickScale = 0.06;
-  const kickAddScale = 0.28;
-
-  const floorLow = 0.002;
-  const floorHi = 0.0006;
-
-  const m = Math.pow(10, compactDigits);
+  let previousBars: number[] | null = null;
+  let previousBassEnergy = 0;
+  let kickEnvelope = 0;
 
   for (let f = 0; f < rawBarsFrames.length; f++) {
-    let shaped = rawBarsFrames[f].map((v, i) => shapeMag(v / (barRef[i] || 1)));
+    let bars = rawBarsFrames[f].map((value, i) =>
+      normalizeWithLog(value, barReferences[i])
+    );
 
-    const bassN = clamp01(Math.log10(bassTrack[f] + 1) / bassRef);
+    const currentBassEnergy = bassEnergies[f];
+    const kick = detectKick(currentBassEnergy, previousBassEnergy, kickSensitivity);
+    kickEnvelope = Math.max(kickEnvelope * 0.88, kick);
 
-    bassFast += (bassN - bassFast) * 0.35;
-    bassSlow += (bassN - bassSlow) * 0.04;
+    bars = applyKickBoost(bars, kickEnvelope, barCount);
+    bars = applySidechainPumping(bars, kickEnvelope, pumpingIntensity, barCount);
+    bars = applyAttackDecay(bars, previousBars, attackSpeed, decaySpeed);
+    bars = smoothCircular(bars, smoothing);
 
-    const ratio = bassSlow > 1e-6 ? bassFast / bassSlow : 1;
-    const kick = clamp01((ratio - 1.08) * 1.8);
+    const finalBars = bars.map((v) =>
+      Math.round(clamp01(v) * multiplier) / multiplier
+    );
 
-    kickEnv = Math.max(kickEnv * 0.9, kick);
-
-    const peaks = [2, 6, 10];
-
-    const ribbon = lowBase + lowBaseKickScale * kickEnv;
-    const kickAdd = kickAddScale * kickEnv;
-
-    const rawOut = new Array(barCount).fill(0).map((_, index) => {
-      let value = shaped[index];
-
-      if (index <= lowEnd) {
-        let bump = 0;
-        for (const p of peaks) {
-          const d = Math.abs(index - p);
-          bump += Math.exp(-(d * d) / 1.6);
-        }
-        bump /= peaks.length;
-
-        const base = value * 0.75;
-        const out = base + ribbon + kickAdd * bump;
-        return Math.max(out, floorLow);
-      } else {
-        value = Math.pow(value, 1.1) * 0.98;
-        return Math.max(value, floorHi);
-      }
-    });
-
-    const ema = rawOut.map((value, index) => {
-      const prev = prevOut?.[index] ?? 0;
-      const alpha = index <= lowEnd ? alphaLow : alphaHi;
-      return prev + (value - prev) * alpha;
-    });
-
-    const lowSm = smoothRangeCircular(ema, 0, lowEnd, 0.65);
-
-    const sm = smoothCircular(lowSm, 0.28);
-
-    const out = sm.map(clamp01);
-    frames.push(out.map((x) => Math.round(x * m) / m));
-    prevOut = out;
+    frames.push(finalBars);
+    previousBars = bars;
+    previousBassEnergy = currentBassEnergy;
   }
 
   return frames;
