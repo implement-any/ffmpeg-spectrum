@@ -6,9 +6,9 @@ import { createFrames, u8ToBin } from "@/utils/generate";
 import { ROOT_DIR } from "@/utils/file";
 
 export async function generateJSON(name: string) {
-  const assets = path.join(ROOT_DIR, `/public/audio/${name}.wav`);
-  const output = path.join(ROOT_DIR, `/public/json/${name}.meta.json`);
-  const outbin = path.join(ROOT_DIR, `/public/json/${name}.bin`);
+  const assets = path.join(ROOT_DIR, "public", "audio", `${name}.wav`);
+  const output = path.join(ROOT_DIR, "public", "json", `${name}.meta.json`);
+  const outbin = path.join(ROOT_DIR, "public", "json", `${name}.bin`);
 
   const pcm = await extract(assets);
 
