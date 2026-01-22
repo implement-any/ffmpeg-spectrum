@@ -54,6 +54,7 @@
       };
 
       const form = document.querySelector("form");
+      const title = document.querySelector("input[name='title']");
 
       const onChange = (e) => {
         const file = e.target.files[0];
@@ -62,6 +63,9 @@
 
         if (file) {
           label.innerText = file.name;
+          if (file.type == "audio/wav") {
+            title.value = file.name.replace(".wav", "");
+          }
         } else {
           label.innerText = LABEL_FIELDS[name].text;
         }

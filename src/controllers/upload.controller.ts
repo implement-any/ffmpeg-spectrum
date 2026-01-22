@@ -1,8 +1,6 @@
 import path from "path";
 import type { Request, Response } from "express";
 
-import type { Music } from "./upload.controller.type";
-
 import { generateJSON } from "@/utils/generate";
 import { replace } from "@/utils/regex";
 import { resize, getBlurHash } from "@/utils/image";
@@ -37,7 +35,7 @@ export async function generateFile(req: Request, res: Response) {
       subTitle: subTitle,
     };
 
-    appendWriteJson("/public/db/music.json", row);
+    appendWriteJson("/public/db/music.json", row, (data) => row.audioId == data.audioId);
     res.sendStatus(200);
   } catch (e) {
     res.status(500).json({ message: "파일 업로드에 실패하였습니다." });
